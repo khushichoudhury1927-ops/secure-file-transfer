@@ -23,3 +23,15 @@ A working client and server that send a file over an encrypted connection and co
 - Linux (terminal, sockets, file handling, build tools)
 - OpenSSL (TLS encryption and SHA-256)
 - CMake and Git (build and version control)
+
+## Build and Run
+    bash scripts/gen_cert.sh
+    cmake -S . -B build
+    cmake --build build -j"$(nproc)"
+    ./build/sft server 9000
+    ./build/sft client 9000 path/to/file
+
+Received files are saved in received/. If a transfer is interrupted, run the same client command again and it resumes.
+
+## Tests
+    bash tests/run_tests.sh
