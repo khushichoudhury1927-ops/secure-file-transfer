@@ -3,13 +3,14 @@
 ## 1. Overview
 A client-server system. The client reads a file and sends it in chunks over a TLS connection. The server stores it and checks its SHA-256 hash.
 
-mermaid
+```mermaid
 flowchart LR
     A[Client] -- TLS connection --> B[Server]
     A --> C[(Source file)]
     B --> D[(Received file)]
     A --> E[Checksum module]
     B --> E
+```
 
 
 ## 2. Components and Responsibilities
@@ -27,7 +28,7 @@ flowchart LR
 - Hash as a 64-character hex std::string
 
 ## 4. Class Diagram
-mermaid
+```mermaid
 classDiagram
     class Server {
         -int port
@@ -53,10 +54,11 @@ classDiagram
     Server --> ServerSession : creates
     ServerSession --> Checksum : uses
     Client --> Checksum : uses
+```
 
 
 ## 5. Sequence Diagram
-mermaid
+```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Server
@@ -70,10 +72,11 @@ sequenceDiagram
     end
     S->>S: Compute SHA-256
     S-->>C: Hash match / mismatch
+```
 
 
 ## 6. State Machine Diagram (Client)
-mermaid
+```mermaid
 stateDiagram-v2
     [*] --> Idle
     Idle --> Connecting: start
@@ -87,6 +90,7 @@ stateDiagram-v2
     Sending --> Connecting: connection lost, resume
     Done --> [*]
     Failed --> [*]
+```
 
 
 ## 7. Implementation Plan
