@@ -1,5 +1,7 @@
 #include "transfer.h"
 #include "io.h"
+#include "checksum.h"
+#include <array>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <arpa/inet.h>
@@ -22,6 +24,12 @@ int runClient(int port, const std::string& filePath) {
     in.seekg(0);
     std::string name = std::filesystem::path(filePath).filename().string();
 
+    std::array<unsigned char, 32> hash;
+    if (!sha256File(filePath, hash)) {
+        std::cerr << "[CLIENT] Could not hash file\n";
+        return 1;
+    }
+    std::cout << "[CLIENT] SHA-256: " << toHex(hash) << "\n";
     SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
     if (!ctx || SSL_CTX_load_verify_locations(ctx, "tls_key/server.crt", nullptr) != 1) {
         std::cerr << "[CLIENT] Could not load the server certificate\n";
@@ -53,6 +61,7 @@ int runClient(int port, const std::string& filePath) {
     bool ok = sslWriteAll(ssl, num, 8) && sslWriteAll(ssl, name.data(), name.size());
     putU64(size, num);
     ok = ok && sslWriteAll(ssl, num, 8);
+    ok = ok && sslWriteAll(ssl, hash.data(), 32);
 
     std::vector<char> chunk(64 * 1024);
     uint64_t sent = 0;

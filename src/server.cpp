@@ -1,5 +1,7 @@
 #include "transfer.h"
 #include "io.h"
+#include "checksum.h"
+#include <array>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <netinet/in.h>
@@ -36,6 +38,8 @@ static void handleClient(SSL* ssl) {
     if (!sslReadAll(ssl, name.data(), nameLen)) return;
     if (!sslReadAll(ssl, num, 8)) return;
     uint64_t size = getU64(num);
+    std::array<unsigned char, 32> expected;
+    if (!sslReadAll(ssl, expected.data(), 32)) return;
 
     std::string safe = std::filesystem::path(name).filename().string();
     if (safe.empty() || safe == "." || safe == "..") {
@@ -64,7 +68,10 @@ static void handleClient(SSL* ssl) {
     }
     out.close();
     std::cout << "[SERVER] Saved " << outPath << "\n";
-    sslWriteAll(ssl, "OK", 2);
+    std::array<unsigned char, 32> actual{};
+    bool match = sha256File(outPath, actual) && actual == expected;
+    std::cout << "[SERVER] SHA-256 " << (match ? "matches" : "MISMATCH") << ": " << toHex(actual) << "\n";
+    sslWriteAll(ssl, match ? "OK" : "NO", 2);
 }
 
 int runServer(int port) {
