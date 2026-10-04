@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -63,6 +64,19 @@ int runClient(int port, const std::string& filePath) {
     ok = ok && sslWriteAll(ssl, num, 8);
     ok = ok && sslWriteAll(ssl, hash.data(), 32);
 
+    uint64_t offset = 0;
+    ok = ok && sslReadAll(ssl, num, 8);
+    if (ok) offset = getU64(num);
+    if (!ok || offset > size) {
+        std::cerr << "[CLIENT] Bad reply from server\n";
+        return 1;
+    }
+    std::cout << "[CLIENT] Resuming from offset: " << offset << " bytes\n";
+    in.seekg(static_cast<std::streamoff>(offset));
+
+    const char* stopEnv = std::getenv("SFT_STOP_AFTER");
+    uint64_t stopAfter = stopEnv ? std::stoull(stopEnv) : 0;
+
     std::vector<char> chunk(64 * 1024);
     uint64_t sent = 0;
     while (ok && in) {
@@ -71,6 +85,11 @@ int runClient(int port, const std::string& filePath) {
         if (got <= 0) break;
         ok = sslWriteAll(ssl, chunk.data(), static_cast<size_t>(got));
         sent += static_cast<uint64_t>(got);
+        if (stopAfter > 0 && sent >= stopAfter) {
+            std::cout << "[CLIENT] Simulated interruption after " << sent << " bytes\n";
+            close(fd);
+            return 2;
+        }
     }
     if (!ok) {
         std::cerr << "[CLIENT] Send failed after " << sent << " bytes\n";

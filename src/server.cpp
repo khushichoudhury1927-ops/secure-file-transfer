@@ -48,29 +48,50 @@ static void handleClient(SSL* ssl) {
     }
     std::filesystem::create_directories("received");
     std::string outPath = "received/" + safe;
-    std::ofstream out(outPath, std::ios::binary);
+    std::string partPath = outPath + ".part";
+
+    uint64_t offset = 0;
+    std::error_code ec;
+    if (std::filesystem::exists(partPath, ec)) {
+        uint64_t have = std::filesystem::file_size(partPath, ec);
+        if (!ec && have <= size) offset = have;
+    }
+    putU64(offset, num);
+    if (!sslWriteAll(ssl, num, 8)) return;
+
+    std::ofstream out(partPath, std::ios::binary | (offset > 0 ? std::ios::app : std::ios::trunc));
     if (!out) {
-        std::cerr << "[SERVER] Cannot create " << outPath << "\n";
+        std::cerr << "[SERVER] Cannot create " << partPath << "\n";
         return;
     }
-    std::cout << "[SERVER] Receiving " << safe << " (" << size << " bytes)\n";
+    std::cout << "[SERVER] Receiving " << safe << " (" << size
+              << " bytes, resuming at " << offset << ")\n";
 
     std::vector<char> chunk(64 * 1024);
-    uint64_t remaining = size;
+    uint64_t remaining = size - offset;
     while (remaining > 0) {
         size_t want = static_cast<size_t>(std::min<uint64_t>(remaining, chunk.size()));
         if (!sslReadAll(ssl, chunk.data(), want)) {
-            std::cerr << "[SERVER] Connection lost during transfer\n";
+            out.close();
+            std::cerr << "[SERVER] Connection lost, kept partial file with "
+                      << (size - remaining) << " bytes\n";
             return;
         }
         out.write(chunk.data(), static_cast<std::streamsize>(want));
         remaining -= want;
     }
     out.close();
-    std::cout << "[SERVER] Saved " << outPath << "\n";
+
     std::array<unsigned char, 32> actual{};
-    bool match = sha256File(outPath, actual) && actual == expected;
-    std::cout << "[SERVER] SHA-256 " << (match ? "matches" : "MISMATCH") << ": " << toHex(actual) << "\n";
+    bool match = sha256File(partPath, actual) && actual == expected;
+    std::cout << "[SERVER] SHA-256 " << (match ? "matches" : "MISMATCH")
+              << ": " << toHex(actual) << "\n";
+    if (match) {
+        std::filesystem::rename(partPath, outPath);
+        std::cout << "[SERVER] Saved " << outPath << "\n";
+    } else {
+        std::filesystem::remove(partPath);
+    }
     sslWriteAll(ssl, match ? "OK" : "NO", 2);
 }
 
