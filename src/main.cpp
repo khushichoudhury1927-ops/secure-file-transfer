@@ -7,6 +7,6 @@ int main(int argc, char** argv) {
         return runServer(std::stoi(argv[2]));
     if (argc >= 4 && std::string(argv[1]) == "client")
         return runClient(std::stoi(argv[2]), argv[3]);
-    std::cerr << "Usage:\n  sft server <port>\n  sft client <port> <message>\n";
+    std::cerr << "Usage:\n  sft server <port>\n  sft client <port> <file>\n";
     return 1;
 }

@@ -2,4 +2,4 @@
 #include <string>
 
 int runServer(int port);
-int runClient(int port, const std::string& message);
+int runClient(int port, const std::string& filePath);

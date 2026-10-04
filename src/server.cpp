@@ -1,11 +1,16 @@
 #include "transfer.h"
+#include "io.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <vector>
 
 static SSL_CTX* makeContext() {
     SSL_CTX* ctx = SSL_CTX_new(TLS_server_method());
@@ -17,6 +22,49 @@ static SSL_CTX* makeContext() {
         return nullptr;
     }
     return ctx;
+}
+
+static void handleClient(SSL* ssl) {
+    unsigned char num[8];
+    if (!sslReadAll(ssl, num, 8)) return;
+    uint64_t nameLen = getU64(num);
+    if (nameLen == 0 || nameLen > 255) {
+        std::cerr << "[SERVER] Bad file name length\n";
+        return;
+    }
+    std::string name(nameLen, '\0');
+    if (!sslReadAll(ssl, name.data(), nameLen)) return;
+    if (!sslReadAll(ssl, num, 8)) return;
+    uint64_t size = getU64(num);
+
+    std::string safe = std::filesystem::path(name).filename().string();
+    if (safe.empty() || safe == "." || safe == "..") {
+        std::cerr << "[SERVER] Bad file name\n";
+        return;
+    }
+    std::filesystem::create_directories("received");
+    std::string outPath = "received/" + safe;
+    std::ofstream out(outPath, std::ios::binary);
+    if (!out) {
+        std::cerr << "[SERVER] Cannot create " << outPath << "\n";
+        return;
+    }
+    std::cout << "[SERVER] Receiving " << safe << " (" << size << " bytes)\n";
+
+    std::vector<char> chunk(64 * 1024);
+    uint64_t remaining = size;
+    while (remaining > 0) {
+        size_t want = static_cast<size_t>(std::min<uint64_t>(remaining, chunk.size()));
+        if (!sslReadAll(ssl, chunk.data(), want)) {
+            std::cerr << "[SERVER] Connection lost during transfer\n";
+            return;
+        }
+        out.write(chunk.data(), static_cast<std::streamsize>(want));
+        remaining -= want;
+    }
+    out.close();
+    std::cout << "[SERVER] Saved " << outPath << "\n";
+    sslWriteAll(ssl, "OK", 2);
 }
 
 int runServer(int port) {
@@ -47,13 +95,7 @@ int runServer(int port) {
             ERR_print_errors_fp(stderr);
         } else {
             std::cout << "[SERVER] TLS handshake complete\n";
-            char buf[1024];
-            int n = SSL_read(ssl, buf, sizeof buf - 1);
-            if (n > 0) {
-                buf[n] = '\0';
-                std::cout << "[SERVER] Received: " << buf << "\n";
-                SSL_write(ssl, "OK", 2);
-            }
+            handleClient(ssl);
         }
         SSL_shutdown(ssl);
         SSL_free(ssl);
