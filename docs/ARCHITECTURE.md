@@ -20,42 +20,54 @@ flowchart LR
 | ServerSession | Handles one client: TLS handshake, receives chunks, verifies hash |
 | Client | Connects, verifies certificate, sends file in chunks |
 | Checksum | Computes SHA-256 of a file |
-| Protocol | Defines the messages exchanged (header, chunk, hash, result) |
+| io.h | Helpers that send and read exact byte counts over TLS; the message layout is in docs/PROTOCOL.md |
+| raii.h | SslContext and SslConnection classes that free TLS objects and close sockets automatically |
 
 ## 3. Data Structures
-- FileHeader { std::string name; uint64_t size; uint64_t resumeOffset; }
-- Chunk as a std::vector<char> of fixed size (64 KB)
-- Hash as a 64-character hex std::string
+- Header fields, sent in this order: name length (uint64_t), file name (std::string), file size (uint64_t), SHA-256 (Checksum::Hash, a std::array<unsigned char, 32>).
+- Resume offset (uint64_t) sent back by the server.
+- Chunk buffer: std::vector<char> of 64 KB.
+- SslContext and SslConnection (raii.h): own the OpenSSL objects and free them automatically.
 
 ## 4. Class Diagram
 ```mermaid
 classDiagram
     class Server {
-        -int port
-        -SSL_CTX* ctx
-        +start()
-        +acceptClient()
+        -int port_
+        -int listenFd_
+        -SslContext ctx_
+        +run() int
+        -loadCertificate() bool
+        -openSocket() bool
     }
     class ServerSession {
-        -SSL* ssl
-        +handshake()
-        +receiveFile()
-        +verifyHash()
+        -SslConnection conn_
+        -string name_
+        -uint64_t size_
+        -uint64_t offset_
+        +run()
+        -receiveHeader() bool
+        -receiveData() bool
+        -verifyAndFinish()
     }
     class Client {
-        -std::string host
-        -int port
-        +connectToServer()
-        +sendFile(path)
+        -int port_
+        -SslContext ctx_
+        +sendFile(path) int
     }
     class Checksum {
-        +sha256(path) string
+        +sha256File(path, out)$ bool
+        +toHex(hash)$ string
     }
-    Server --> ServerSession : creates
-    ServerSession --> Checksum : uses
-    Client --> Checksum : uses
+    class SslContext
+    class SslConnection
+    Server --> ServerSession : creates one per client
+    Server *-- SslContext
+    ServerSession *-- SslConnection
+    ServerSession ..> Checksum : verifies hash
+    Client ..> Checksum : computes hash
+    Client *-- SslContext
 ```
-
 
 ## 5. Sequence Diagram
 ```mermaid

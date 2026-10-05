@@ -14,9 +14,11 @@ A command-line client and server written in C++20 for Linux. The client sends a 
 | 6 | Protocol, report, demo | docs/PROTOCOL.md, docs/DEMO.md, this report |
 
 ## 3. Design Summary
-- Server: listens on a port, accepts a client, runs the TLS handshake, receives the header and data.
-- Client: loads the server certificate, verifies it, sends the header, then the data.
-- Checksum module: streams a file through SHA-256 using OpenSSL.
+- Server class: opens the listening socket, loads the certificate, accepts clients and creates one ServerSession per client.
+- ServerSession class: runs the TLS handshake, reads the header, replies with the resume offset, receives the data with progress and speed output, verifies the hash and renames the file.
+- Client class: loads the server certificate, verifies it, sends the header and then the data with progress and speed output.
+- Checksum class: streams a file through SHA-256 using OpenSSL.
+- raii.h: SslContext and SslConnection own the OpenSSL objects and the socket and release them automatically.
 - io.h: helpers that send and receive an exact number of bytes over TLS.
 
 ## 4. Linux and C++ Concepts Used

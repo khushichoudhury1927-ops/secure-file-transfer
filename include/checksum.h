@@ -2,5 +2,9 @@
 #include <array>
 #include <string>
 
-bool sha256File(const std::string& path, std::array<unsigned char, 32>& out);
-std::string toHex(const std::array<unsigned char, 32>& h);
+class Checksum {
+public:
+    using Hash = std::array<unsigned char, 32>;
+    static bool sha256File(const std::string& path, Hash& out);
+    static std::string toHex(const Hash& h);
+};

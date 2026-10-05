@@ -4,7 +4,7 @@
 #include <fstream>
 #include <vector>
 
-bool sha256File(const std::string& path, std::array<unsigned char, 32>& out) {
+bool Checksum::sha256File(const std::string& path, Hash& out) {
     std::ifstream in(path, std::ios::binary);
     if (!in) return false;
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
@@ -22,7 +22,7 @@ bool sha256File(const std::string& path, std::array<unsigned char, 32>& out) {
     return len == 32;
 }
 
-std::string toHex(const std::array<unsigned char, 32>& h) {
+std::string Checksum::toHex(const Hash& h) {
     std::string s;
     char b[3];
     for (unsigned char c : h) {
