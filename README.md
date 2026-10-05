@@ -35,3 +35,13 @@ Received files are saved in received/. If a transfer is interrupted, run the sam
 
 ## Tests
     bash tests/run_tests.sh
+
+## Documentation
+| File | Contents |
+|------|----------|
+| docs/PRD.md | Requirements |
+| docs/ARCHITECTURE.md | Architecture and UML |
+| docs/PROTOCOL.md | Wire protocol |
+| docs/TEST_PLAN.md | Tests and results |
+| docs/DEMO.md | Demo steps |
+| docs/REPORT.md | Project report |
